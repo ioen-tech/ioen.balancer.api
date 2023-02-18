@@ -1,0 +1,65 @@
+{
+  "name": "rg-api",
+  "version": "0.0.2",
+  "description": "The RedGrid API for MVP",
+  "main": "src/index.ts",
+  "engines": {
+    "node": "14.18.1",
+    "npm": "6.14.15"
+  },
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "dev": "NODE_ENV=development nodemon",
+    "test": "jest",
+    "test-watch": "jest --watch",
+    "heroku-post-build": "npm run build"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/redgridone/rg-api.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/redgridone/rg-api/issues"
+  },
+  "homepage": "https://github.com/redgridone/rg-api#readme",
+  "devDependencies": {
+    "@babel/core": "^7.12.10",
+    "@babel/preset-env": "^7.12.11",
+    "@babel/preset-typescript": "^7.12.7",
+    "@types/express": "^4.17.9",
+    "@types/jest": "^26.0.19",
+    "@types/lodash": "^4.14.168",
+    "@types/supertest": "^2.0.10",
+    "babel-jest": "^26.6.3",
+    "jest": "^26.6.3",
+    "nodemon": "^2.0.6",
+    "supertest": "^6.0.1"
+  },
+  "dependencies": {
+    "@types/node": "12.12.6",
+    "@types/passport": "^1.0.5",
+    "axios": "^0.21.1",
+    "bcrypt": "^5.0.0",
+    "bullmq": "^1.14.7",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "energy-schema": "../Redgrid.energy.schema",
+    "expo-server-sdk": "^3.6.0",
+    "express": "^4.17.1",
+    "ioredis": "^4.23.0",
+    "jwt-simple": "^0.5.6",
+    "lodash": "^4.17.20",
+    "moment-timezone": "^0.5.33",
+    "passport": "^0.4.1",
+    "passport-jwt": "^4.0.0",
+    "serve": "^13.0.2",
+    "ts-node": "^10.8.1",
+    "twilio": "^3.55.0",
+    "typescript": "^4.1.3"
+  }
+}

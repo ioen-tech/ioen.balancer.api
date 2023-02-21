@@ -1,11 +1,12 @@
 import { Response, RequestHandler, Router } from 'express'
-import { Prisma, PrismaClient, Users } from 'energy-schema'
+import { GroupMembers, Prisma, PrismaClient, Users } from 'energy-schema'
 import axios from 'axios'
 
 
 type JwtToken = string
 type TokenResponse = {
   token: JwtToken
+  route: string
 }
 
 type SignInRequest = {
@@ -79,12 +80,19 @@ import internal from 'assert'
 // a bcrypt configuration
 const saltRounds = 10
 
-const createTokenResponseForUser = (user: Users): TokenResponse => {
+const createTokenResponseForUser = (user: Users, groupMember: GroupMembers): TokenResponse => {
   const payload: JWTpayload = {
     user_id: user.user_id,
   }
+  let route = ''
+  if (groupMember) {
+    route = '/home'
+  } else {
+    route = '/groupmgmt'
+  }
   const tokenResponse: TokenResponse = {
     token: jwt.encode(payload, jwtConfig().jwtSecret),
+    route: route
   }
   return tokenResponse
 }
@@ -119,13 +127,20 @@ function makeRouter(
         username,
       },
     })
+
     // important, compare the hashed version of the
     // password that was given, with the hashed password
     // that has been stored in the database
     if (user) {
       if (await bcrypt.compare(password, user.password)) {
         // success!
-        const signInResponse: SignInResponse = createTokenResponseForUser(user)
+        // Check if user is member of a group.
+        const groupMember = await client.groupMembers.findFirst({
+          where: {
+            user_id: user.user_id
+          }
+        })
+        const signInResponse: SignInResponse = createTokenResponseForUser(user, groupMember)
         res.cookie('jwt', signInResponse, {
           httpOnly: true,
           maxAge: 24 * 60 * 60 * 1000
@@ -148,28 +163,43 @@ function makeRouter(
     const input: CreateGroupRequest = req.body
 
     try {
-      const createGroupsArgs: Prisma.GroupsCreateArgs = {
-        data: {
-          ...input
+      // Check if groupname already exist.
+      const groupRec = await client.groups.findFirst({
+        where: {
+          group_name: input.group_name
         }
-      }
-      const group = await client.groups.create(createGroupsArgs)
-
-      // The group admin will automatically be a mamber of the group.
-      const member = {
-        user_id: req.user.user_id,
-        group_id: group.group_id
-      }
-      const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
-        data: {
-          ...member
-        }
-      }
-      const groupMember = await client.groupMembers.create(createGroupMemberArgs)
-
-      res.json({
-        message: 'New group and member has been created'
       })
+
+      // If group doest not exist, create it and save to database.
+      if (!groupRec) {
+        const createGroupsArgs: Prisma.GroupsCreateArgs = {
+          data: {
+            ...input
+          }
+        }
+        const group = await client.groups.create(createGroupsArgs)
+
+        // The group admin will automatically be a mamber of the group.
+        const member = {
+          user_id: req.user.user_id,
+          group_id: group.group_id
+        }
+        const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
+          data: {
+            ...member
+          }
+        }
+        const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+        res.json({
+          message: 'New group and member has been created'
+        })
+      } else {
+        // IF group exist, return 400 error.
+        res.status(400).json({
+          message: "Group name exist!"
+        })
+      }
     } catch (e) {
       console.log('unexpected error', e)
       res.status(400).json({
@@ -206,9 +236,10 @@ function makeRouter(
         })
       } else {
         // Group name does not exist.
-        res.status(400).json({
+        res.status(404).json({
           message: 'Group name does not exist.'
         })
+        return
       }
     } catch (e) {
       console.log('unexpected error', e)
@@ -264,7 +295,7 @@ function makeRouter(
       }
       const user = await client.users.create(createUserArgs)
       // success!
-      const signUpResponse: SignUpResponse = createTokenResponseForUser(user)
+      const signUpResponse: SignUpResponse = createTokenResponseForUser(user, null)
       res.json(signUpResponse)
 
       return

@@ -1,7 +1,7 @@
 // @ts-ignore
 import { Strategy, ExtractJwt } from 'passport-jwt'
 import passport from 'passport'
-import { PrismaClient, User } from 'energy-schema'
+import { PrismaClient, Users } from 'energy-schema'
 
 const jwtConfig = () => ({
   jwtSecret: process.env.JWT_SECRET,
@@ -23,9 +23,9 @@ function setupPassport(dbClient: PrismaClient) {
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
         secretOrKey: jwtConfig().jwtSecret,
       },
-      async function (payload: JWTpayload, done: (e: Error | null, user?: User) => void) {
+      async function (payload: JWTpayload, done: (e: Error | null, user?: Users) => void) {
         // TODO: handle await error
-        const user = await dbClient.user.findFirst({
+        const user = await dbClient.users.findFirst({
           where: {
             user_id: payload.user_id,
           },

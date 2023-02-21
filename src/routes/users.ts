@@ -1,5 +1,5 @@
 import { Response, RequestHandler, Router } from 'express'
-import { Prisma, PrismaClient, User } from 'energy-schema'
+import { Prisma, PrismaClient, Users } from 'energy-schema'
 import axios from 'axios'
 
 
@@ -9,7 +9,7 @@ type TokenResponse = {
 }
 
 type SignInRequest = {
-  email_address: string
+  username: string
   password: string
 }
 type SignInResponse = TokenResponse
@@ -33,6 +33,19 @@ type SignUpRequest = {
 }
 
 type SignUpResponse = TokenResponse
+
+type CreateGroupRequest = {
+  group_name: string
+  min_users: number,
+  max_users: number,
+  reward_start_balance: number
+}
+type CreateGroupResponse = null
+
+type JoinGroupRequest = {
+  group_name: string
+}
+type JoinGroupResponse = null
 
 type RecoverPasswordRequest = {
   phoneNumber: string
@@ -60,12 +73,13 @@ import twilio from 'twilio'
 import { MailFunction } from '../tools/mail'
 import Expo from 'expo-server-sdk'
 import { Queue } from 'bullmq'
+import internal from 'assert'
 
 
 // a bcrypt configuration
 const saltRounds = 10
 
-const createTokenResponseForUser = (user: User): TokenResponse => {
+const createTokenResponseForUser = (user: Users): TokenResponse => {
   const payload: JWTpayload = {
     user_id: user.user_id,
   }
@@ -92,18 +106,17 @@ function makeRouter(
     const input: SignInRequest = req.body
     // early exit if not passing required fields
 
-    console.log(input)
-    if (!input.email_address || !input.password) {
+    if (!input.username || !input.password) {
       res.status(400).json({
         message: 'email and password are required fields',
       })
       return
     }
 
-    const { email_address, password } = input
-    const user = await client.user.findFirst({
+    const { username, password } = input
+    const user = await client.users.findFirst({
       where: {
-        email_address,
+        username,
       },
     })
     // important, compare the hashed version of the
@@ -113,6 +126,10 @@ function makeRouter(
       if (await bcrypt.compare(password, user.password)) {
         // success!
         const signInResponse: SignInResponse = createTokenResponseForUser(user)
+        res.cookie('jwt', signInResponse, {
+          httpOnly: true,
+          maxAge: 24 * 60 * 60 * 1000
+        })
         res.json(signInResponse)
       } else {
         res.status(400).json({
@@ -122,6 +139,81 @@ function makeRouter(
     } else {
       res.status(404).json({
         message: 'no user was found with that email',
+      })
+    }
+  })
+  
+  // Creates a new group
+  router.post('/new_group', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input: CreateGroupRequest = req.body
+
+    try {
+      const createGroupsArgs: Prisma.GroupsCreateArgs = {
+        data: {
+          ...input
+        }
+      }
+      const group = await client.groups.create(createGroupsArgs)
+
+      // The group admin will automatically be a mamber of the group.
+      const member = {
+        user_id: req.user.user_id,
+        group_id: group.group_id
+      }
+      const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
+        data: {
+          ...member
+        }
+      }
+      const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+      res.json({
+        message: 'New group and member has been created'
+      })
+    } catch (e) {
+      console.log('unexpected error', e)
+      res.status(400).json({
+        message: e.message
+      })
+    }
+  })
+
+  // Creates a new group
+  router.post('/join_group', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input: JoinGroupRequest = req.body
+
+    try {
+      const group = await client.groups.findFirst({
+        where: {
+          group_name: input.group_name
+        }
+      })
+      if (group) {
+        // Add user id and group id to group_members DB
+        const gdata = {
+          user_id: req.user.user_id,
+          group_id: group.group_id
+        }
+        const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
+          data: {
+            ...gdata
+          }
+        }
+        const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+        res.json({
+          message: 'Member has been added to the group'
+        })
+      } else {
+        // Group name does not exist.
+        res.status(400).json({
+          message: 'Group name does not exist.'
+        })
+      }
+    } catch (e) {
+      console.log('unexpected error', e)
+      res.status(400).json({
+        message: e.message
       })
     }
   })
@@ -157,7 +249,7 @@ function makeRouter(
     }
 
     try {
-      const createUserArgs: Prisma.UserCreateArgs = {
+      const createUserArgs: Prisma.UsersCreateArgs = {
         data: {
           ...userInfo,
           fronius_info: {
@@ -170,7 +262,7 @@ function makeRouter(
           }
         }
       }
-      const user = await client.user.create(createUserArgs)
+      const user = await client.users.create(createUserArgs)
       // success!
       const signUpResponse: SignUpResponse = createTokenResponseForUser(user)
       res.json(signUpResponse)

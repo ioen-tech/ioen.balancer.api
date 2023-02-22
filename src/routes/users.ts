@@ -1,69 +1,18 @@
 import { Response, RequestHandler, Router } from 'express'
 import { GroupMembers, Prisma, PrismaClient, Users } from 'energy-schema'
 import axios from 'axios'
-
-
-type JwtToken = string
-type TokenResponse = {
-  token: JwtToken
-  route: string
-}
-
-type SignInRequest = {
-  username: string
-  password: string
-}
-type SignInResponse = TokenResponse
-
-// means all the fields on UserCreateInput + password field
-// type SignUpRequest = Prisma.UserCreateInput & {
-//   password: string
-// }
-
-
-type SignUpRequest = {
-  username: string
-  email: string
-  password: string
-  fronius_userid: string
-  fronius_password: string
-  fronius_accesskey_id: string
-  fronius_accesskey_value: string
-  retailer: string
-  meter_hardware: string
-}
-
-type SignUpResponse = TokenResponse
-
-type CreateGroupRequest = {
-  group_name: string
-  min_users: number,
-  max_users: number,
-  reward_start_balance: number
-}
-type CreateGroupResponse = null
-
-type JoinGroupRequest = {
-  group_name: string
-}
-type JoinGroupResponse = null
-
-type RecoverPasswordRequest = {
-  phoneNumber: string
-}
-type RecoverPasswordResponse = null
-
-type PasswordResetRequest = {
-  newPassword: string
-  recoverCode: number
-  phoneNumber: string
-}
-type PasswordResetResponse = null
-
-type SendIntegrationCodeRequest = {
-  email: string
-}
-type SendIntegrationCodeResponse = null
+import {
+  TokenResponse,
+  SignInRequest,
+  SignInResponse,
+  SignUpRequest,
+  SignUpResponse,
+  CreateGroupRequest,
+  JoinGroupRequest,
+  RecoverPasswordRequest,
+  PasswordResetRequest,
+  SendIntegrationCodeRequest
+} from '../types'
 
 
 import jwt from 'jwt-simple'

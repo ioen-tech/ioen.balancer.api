@@ -38,7 +38,10 @@ async function makeApp(
   app.use(express.static('public'))
   // json parser for (req.body)
   app.use(express.json())
-  app.use(cors())
+  app.use(cors({
+    origin: 'http://localhost:8080',
+    credentials: true
+  }))
   // other custom middleware
   app.use(...middlewares)
   // setup authentication middleware

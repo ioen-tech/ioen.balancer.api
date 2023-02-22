@@ -1,8 +1,8 @@
 import { Request } from 'express'
-import { User } from 'energy-schema/prisma/generated'
+import { Users } from 'energy-schema/prisma/generated'
 
 interface ExtendedRequest extends Request {
-  user?: User
+  user?: Users
   body: any
 }
 

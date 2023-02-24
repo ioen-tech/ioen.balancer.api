@@ -10,6 +10,12 @@ Please see https://github.com/redgridone/Redgrid.energy.schema/blob/main/README.
 ## Ioredis installation
 IORedis() is a requirement for the `bullmq` package which manages the job scheduler.  Make sure to install ioredis server into your system.
 
+To verify if ioredis is running on your local machine type the following command:
+````
+redis-cli
+````
+This will connect to your local server and will show you the host and port number.
+
 ##### Environment file
 The following are the needed property to be set prior to running the api server.
 ````

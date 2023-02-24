@@ -30,7 +30,8 @@ export type CreateGroupRequest = {
   group_name: string
   min_users: number,
   max_users: number,
-  reward_start_balance: number
+  reward_start_balance: number,
+  group_logo: string
 }
 export type CreateGroupResponse = null
 

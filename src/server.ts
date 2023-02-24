@@ -7,6 +7,7 @@ import passport from 'passport'
 import twilio from 'twilio'
 import Expo from 'expo-server-sdk'
 import cors from 'cors'
+import multer from 'multer'
 import { PrismaClient } from 'energy-schema'
 
 import setupPassport from './jwt'
@@ -38,10 +39,7 @@ async function makeApp(
   app.use(express.static('public'))
   // json parser for (req.body)
   app.use(express.json())
-  app.use(cors({
-    origin: 'http://localhost:8080',
-    credentials: true
-  }))
+  app.use(cors())
   // other custom middleware
   app.use(...middlewares)
   // setup authentication middleware
@@ -49,10 +47,21 @@ async function makeApp(
   app.use(passport.initialize())
 
 
+  const storage = multer.diskStorage({
+    destination: function(req, file, callback) {
+      callback(null, __dirname + "/uploads")
+    },
+    filename: function(req, file, callback) {
+      callback(null, file.originalname)
+    }
+  })
+  app.use('/logos', express.static('src/uploads'))
+  // const uploads = multer({dest: __dirname + "/uploads"})
+  const uploads = multer({storage: storage})
   // mount routers
   app.use(
     '/users',
-    usersRouter(dbClient, twilioClient, twilioSendNumber, authenticateRoute, mail, jobQueue),
+    usersRouter(dbClient, twilioClient, twilioSendNumber, authenticateRoute, mail, jobQueue, uploads),
   )
   // start server listening on port, wait for
   // it to be ready

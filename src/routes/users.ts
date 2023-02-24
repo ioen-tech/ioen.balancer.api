@@ -23,7 +23,10 @@ import twilio from 'twilio'
 import { MailFunction } from '../tools/mail'
 import Expo from 'expo-server-sdk'
 import { Queue } from 'bullmq'
+import { files } from 'express-fileupload'
 import internal from 'assert'
+import { groupCollapsed } from 'console'
+import { createInputFiles } from 'typescript'
 
 
 // a bcrypt configuration
@@ -53,6 +56,7 @@ function makeRouter(
   authenticateUser: RequestHandler,
   sendMail: MailFunction,
   jobQueue?: Queue,
+  uploads?: any
 ): Router {
   const router = Router()
 
@@ -90,10 +94,10 @@ function makeRouter(
           }
         })
         const signInResponse: SignInResponse = createTokenResponseForUser(user, groupMember)
-        res.cookie('jwt', signInResponse, {
-          httpOnly: true,
-          maxAge: 24 * 60 * 60 * 1000
-        })
+        // res.cookie('jwt', signInResponse, {
+        //   httpOnly: true,
+        //   maxAge: 24 * 60 * 60 * 1000
+        // })
         res.json(signInResponse)
       } else {
         res.status(400).json({
@@ -107,9 +111,19 @@ function makeRouter(
     }
   })
   
+  // Upload Logo
+  router.post('/upload_logo', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input = req.body
+
+    res.status(400).json({
+      message: "this is just a test"
+    })
+  })
+
   // Creates a new group
-  router.post('/new_group', authenticateUser, async (req: ExtendedRequest, res) => {
-    const input: CreateGroupRequest = req.body
+  router.post('/new_group', authenticateUser, uploads.array("files"), async (req: ExtendedRequest, res) => {
+    const input = req.body
+    const img = req.files[0]
 
     try {
       // Check if groupname already exist.
@@ -119,11 +133,21 @@ function makeRouter(
         }
       })
 
+      const groupLogo = img.path
+
+      const groupInfo = {
+        group_name: input.group_name,
+        min_users: parseInt(input.min_users),
+        max_users: parseInt(input.max_users),
+        reward_start_balance: parseInt(input.reward_start_balance),
+        group_logo: img.originalname
+      }
+
       // If group doest not exist, create it and save to database.
       if (!groupRec) {
         const createGroupsArgs: Prisma.GroupsCreateArgs = {
           data: {
-            ...input
+            ...groupInfo
           }
         }
         const group = await client.groups.create(createGroupsArgs)
@@ -139,6 +163,22 @@ function makeRouter(
           }
         }
         const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+        // Update
+        client.users.update({
+          where: {
+            user_id: req.user.user_id
+          },
+          data: {
+            group_id: group.group_id
+          }
+        }).then((value) => {
+        }).catch((e) => {
+          console.log(e)
+          res.status(500).json({
+            message: 'there was a server error while updating your password'
+          })
+        })
 
         res.json({
           message: 'New group and member has been created'
@@ -157,32 +197,80 @@ function makeRouter(
     }
   })
 
+  // Get Group Info
+  router.get('/get_group_info', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input = req.body
+    try {
+      const gInfo = await client.groups.findFirst({
+        where: {
+          group_id: req.user.group_id
+        }
+      })
+      res.json(gInfo)
+    } catch (e) {
+      console.log('unexpected error', e)
+      res.status(400).json({
+        message: e.message
+      })
+    }
+  })
+
   // Creates a new group
   router.post('/join_group', authenticateUser, async (req: ExtendedRequest, res) => {
     const input: JoinGroupRequest = req.body
 
     try {
+      // Check if groupname exist.
       const group = await client.groups.findFirst({
         where: {
           group_name: input.group_name
         }
       })
       if (group) {
-        // Add user id and group id to group_members DB
-        const gdata = {
-          user_id: req.user.user_id,
-          group_id: group.group_id
-        }
-        const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
-          data: {
-            ...gdata
+        // Check if user is already a member of a group.
+        const mg = await client.groupMembers.findFirst({
+          where: {
+            user_id: req.user.user_id
           }
-        }
-        const groupMember = await client.groupMembers.create(createGroupMemberArgs)
-
-        res.json({
-          message: 'Member has been added to the group'
         })
+
+        if (!mg) {
+          // Add user id and group id to group_members DB
+          const gdata = {
+            user_id: req.user.user_id,
+            group_id: group.group_id
+          }
+
+          client.users.update({
+            where: {
+              user_id: req.user.user_id
+            },
+            data: {
+              group_id: group.group_id
+            }
+          }).then((value) => {
+          }).catch((e) => {
+            console.log(e)
+            res.status(500).json({
+              message: 'there was a server error while updating your password'
+            })
+          })
+
+          const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
+            data: {
+              ...gdata
+            }
+          }
+          const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+          res.json({
+            message: 'Member has been added to the group'
+          })
+        } else {
+          res.status(404).json({
+            message: 'User is already a member of a group'
+          })
+        }
       } else {
         // Group name does not exist.
         res.status(404).json({
@@ -267,7 +355,9 @@ function makeRouter(
   })
 
   router.get('/me', authenticateUser, async (req: ExtendedRequest, res) => {
-    res.json(req.user)
+    let user = req.user
+    delete user.password
+    res.json(user)
   })
 
   router.post('/recover_password', async (req, res) => {

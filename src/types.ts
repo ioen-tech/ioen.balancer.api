@@ -20,6 +20,7 @@ export type SignUpRequest = {
   fronius_password: string
   fronius_accesskey_id: string
   fronius_accesskey_value: string
+  fronius_device_id: string
   retailer: string
   meter_hardware: string
 }

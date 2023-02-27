@@ -55,9 +55,28 @@ async function makeApp(
       callback(null, file.originalname)
     }
   })
+
+  const fileFilter = (req, file, cb) => {
+    if (file.mimetype === 'image/jpeg' || 
+        file.mimetype === 'image/png' ||
+        file.mimetype === 'image/webp') {
+      cb(null, true)
+    } else {
+      cb(new Error("Not an image! Please upload an image"))
+    }
+  }
+
   app.use('/logos', express.static('src/uploads'))
   // const uploads = multer({dest: __dirname + "/uploads"})
-  const uploads = multer({storage: storage})
+  const uploads = multer({
+    storage: storage,
+    limits: {
+      fileSize: 5241288,
+      files: 1
+    },
+    fileFilter: fileFilter
+  })
+  
   // mount routers
   app.use(
     '/users',

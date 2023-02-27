@@ -8,7 +8,9 @@ import { repeatAtHours, repeatAtMinutes, RESILIENCE_OPTS } from '../tools/schedu
 const TIMEZONE = 'Australia/Victoria'
 import {
   jobHandler,
-  QUERY_FRONIUS_INFO,
+  QUERY_FRONIUS_USER,
+  QUERY_FRONIUS_USERS,
+  QUERY_GROUP_NAMES,
 } from './jobHandlers'
 import { MailFunction } from '../tools/mail'
 
@@ -53,10 +55,12 @@ const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction) => {
   // Repeat job to query fronius server every 5 minute interval
   setupRepeatingJob(
     jobQueue,
-    QUERY_FRONIUS_INFO,
-    repeatAtMinutes(5, TIMEZONE), // every 5 minutes
-    'successfully scheduled every day at 12pm daily data live in app notification',
-    'failed to schedule once a day data live in app notification',
+    QUERY_GROUP_NAMES,
+    repeatAtMinutes('*/5', TIMEZONE), // every 5 minutes
+    // repeatAtMinutes(20, TIMEZONE), // every 5 minutes
+    'successfully scheduled every 5 minutes to query Fronius',
+    'failed to schedule to query Fronius every 5 minutes',
+    false
   )
   return jobQueue
 }
@@ -79,6 +83,7 @@ const setupRepeatingJob = async (
       },
     )
     // log(successMessage)
+    console.log(successMessage)
   } catch (error) {
     console.error(failureMessage, error)
   }

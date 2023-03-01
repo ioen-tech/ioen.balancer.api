@@ -83,26 +83,43 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
       const userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
       totalGroupEnergy += userEnergy
 
-      console.log(`user: ${user.user_id}, energy: ${userEnergy}`)
+      console.log(`user: ${user.user_id}:${user.username}, energy: ${userEnergy}`)
     }
 
-    console.log(`Group Energy: ${totalGroupEnergy}`)
-
-    // Sometimes query to fronius returns status code 401.  
-    if (totalGroupEnergy) {
-      // Update Group Energy
-      await dbClient.groups.update({
-        where: {
-          group_id: groupId
-        },
-        data: {
-          group_energy: totalGroupEnergy
-        }
-      })
-    }
-
-    // Calculate Rewards here. TBD...
   }
+
+
+  // Sometimes query to fronius returns status code 401.  
+  if (totalGroupEnergy) {
+    // Calculate Rewards here. TBD...
+    // Group totalbal / 8640 = per interval reward for group
+    // per interval for group / amount of group members = per interval reward for member
+    const group = await dbClient.groups.findFirst({
+      where: {
+        group_id: groupId
+      }
+    })
+    console.log(`${group.group_name} Energy: ${totalGroupEnergy}`)
+    const numMembers = await dbClient.groupMembers.count()
+    const groupReward = Math.round(group.reward_start_balance / 8640)
+    const memberReward = Math.round(groupReward / numMembers)
+  
+
+    const gupdate = {group_energy: totalGroupEnergy}
+    if (totalGroupEnergy > -500 && totalGroupEnergy < 500) {
+      console.log(`groupReward: ${groupReward}`)
+      console.log(`memberReward: ${memberReward}`)
+      gupdate['reward_start_balance'] = {increment: groupReward}
+    }
+    // Update Group Energy
+    await dbClient.groups.update({
+      where: {
+        group_id: groupId
+      },
+      data: gupdate
+    })
+  }
+  
 }
 
 const queryGroupNames = async (dbClient: PrismaClient, queue: Queue) => {

@@ -337,18 +337,19 @@ function makeRouter(
 
       return
     } catch (e) {
-      if (e?.meta?.target === 'email_UNIQUE') {
+      console.log(`meta target: ${e?.meta?.target}`)
+      if (e?.meta?.target === 'email_address_UNIQUE') {
         res.status(400).json({
-          code: 'EMAIL_EXISTS',
+          message: 'Email address already taken',
         })
-      } else if (e?.meta?.target === 'contact_num_UNIQUE') {
+      } else if (e?.meta?.target === 'username_unique') {
         res.status(400).json({
-          code: 'CONTACT_NUM_EXISTS',
+          message: 'Username already taken!',
         })
       } else {
         console.log('unexpected error', e)
         res.status(400).json({
-          message: e.message
+          message: 'Unexpected Error occured!'
         })
       }
     }

@@ -89,9 +89,9 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
   }
 
 
-  // Sometimes query to fronius returns status code 401.  
+  // Sometimes query to fronius returns status code 401.
+  // check if totalGroupEnergy is null or nan
   if (totalGroupEnergy) {
-    // Calculate Rewards here. TBD...
     // Group totalbal / 8640 = per interval reward for group
     // per interval for group / amount of group members = per interval reward for member
     const group = await dbClient.groups.findFirst({
@@ -103,13 +103,26 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
     const numMembers = await dbClient.groupMembers.count()
     const groupReward = Math.round(group.reward_start_balance / 8640)
     const memberReward = Math.round(groupReward / numMembers)
-  
 
     const gupdate = {group_energy: totalGroupEnergy}
     if (totalGroupEnergy > -500 && totalGroupEnergy < 500) {
       console.log(`groupReward: ${groupReward}`)
       console.log(`memberReward: ${memberReward}`)
       gupdate['reward_start_balance'] = {increment: groupReward}
+
+      // Update User reward points
+      for (let user of groupMembers) {
+        await dbClient.users.update({
+          where: {
+            user_id: user.user_id
+          },
+          data: {
+            rewards_points: {
+              increment: memberReward
+            }
+          }
+        })
+      }
     }
     // Update Group Energy
     await dbClient.groups.update({

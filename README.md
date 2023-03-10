@@ -22,6 +22,12 @@ The following are the needed property to be set prior to running the api server.
 JWT_SECRET=""
 REDIS_HOST=
 REDIS_PORT=
+
+VUE_APP_FRONIUS_DEVICE_ID=
+FRONIUS_URL=
+FRONIUS_PVSYSTEMS_URL=
+FRONIUS_PVSYSTEMS_AGGDATA=
+
 PRODUCTION=
 ````
 

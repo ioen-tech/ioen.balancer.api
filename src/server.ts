@@ -4,7 +4,6 @@ dotenv.config()
 
 import express from 'express'
 import passport from 'passport'
-import twilio from 'twilio'
 import Expo from 'expo-server-sdk'
 import cors from 'cors'
 import multer from 'multer'
@@ -29,8 +28,6 @@ const middlewares = [loggerMiddleware]
 
 async function makeApp(
   dbClient: PrismaClient,
-  twilioClient: twilio.Twilio,
-  twilioSendNumber: string,
   mail: MailFunction,
   jobQueue?: Queue,
   portOverride?: number,
@@ -39,7 +36,9 @@ async function makeApp(
   app.use(express.static('public'))
   // json parser for (req.body)
   app.use(express.json())
-  app.use(cors())
+  app.use(cors({
+    origin: '*'
+  }))
   // other custom middleware
   app.use(...middlewares)
   // setup authentication middleware
@@ -80,7 +79,7 @@ async function makeApp(
   // mount routers
   app.use(
     '/users',
-    usersRouter(dbClient, twilioClient, twilioSendNumber, authenticateRoute, mail, jobQueue, uploads),
+    usersRouter(dbClient, authenticateRoute, mail, jobQueue, uploads),
   )
   // start server listening on port, wait for
   // it to be ready
@@ -104,15 +103,6 @@ async function start() {
   // database
   const dbClient = new PrismaClient()
 
-  // SMS: twilio config
-  const TWILIO_SEND_NUMBER = process.env.TWILIO_SEND_NUMBER
-  const USE_TWILIO = process.env.USE_TWILIO
-  let twilioClient: twilio.Twilio
-  if (USE_TWILIO === 'true') {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID
-    const authToken = process.env.TWILIO_AUTH_TOKEN
-    twilioClient = twilio(accountSid, authToken)
-  }
   const USE_MAIL = process.env.USE_MAIL
   let mail: MailFunction
   if (USE_MAIL === 'true') {
@@ -132,8 +122,6 @@ async function start() {
 
   await makeApp(
     dbClient,
-    twilioClient,
-    TWILIO_SEND_NUMBER,
     mail,
     jobQueue
   )

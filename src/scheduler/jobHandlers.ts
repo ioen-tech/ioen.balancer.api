@@ -100,37 +100,47 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
       }
     })
     console.log(`${group.group_name} Energy: ${totalGroupEnergy}`)
-    const numMembers = await dbClient.groupMembers.count()
-    const groupReward = Math.round(group.reward_start_balance / 8640)
-    const memberReward = Math.round(groupReward / numMembers)
-
-    const gupdate = {group_energy: totalGroupEnergy}
-    if (totalGroupEnergy > -500 && totalGroupEnergy < 500) {
-      console.log(`groupReward: ${groupReward}`)
-      console.log(`memberReward: ${memberReward}`)
-      gupdate['reward_start_balance'] = {increment: groupReward}
-
-      // Update User reward points
-      for (let user of groupMembers) {
-        await dbClient.users.update({
-          where: {
-            user_id: user.user_id
-          },
-          data: {
-            rewards_points: {
-              increment: memberReward
-            }
-          }
-        })
-      }
-    }
-    // Update Group Energy
-    await dbClient.groups.update({
+    const numMembers = await dbClient.groupMembers.count({
       where: {
         group_id: groupId
-      },
-      data: gupdate
+      }
     })
+
+    // Check if group has minimum users, if not skip this
+    if (numMembers >= group.min_users) {
+      const groupReward = Math.round(group.reward_start_balance / 8640)
+      const memberReward = Math.round(groupReward / numMembers)
+
+      const gupdate = {group_energy: totalGroupEnergy}
+      if (totalGroupEnergy > -500 && totalGroupEnergy < 500) {
+        console.log(`groupReward: ${groupReward}`)
+        console.log(`memberReward: ${memberReward}`)
+        gupdate['reward_start_balance'] = {increment: groupReward}
+
+        // Update User reward points
+        for (let user of groupMembers) {
+          await dbClient.users.update({
+            where: {
+              user_id: user.user_id
+            },
+            data: {
+              rewards_points: {
+                increment: memberReward
+              }
+            }
+          })
+        }
+      }
+      // Update Group Energy
+      await dbClient.groups.update({
+        where: {
+          group_id: groupId
+        },
+        data: gupdate
+      })
+    } else {
+      console.log(`Group ${group.group_name} does not reach the minimum users`)
+    }
   }
   
 }

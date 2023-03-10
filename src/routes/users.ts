@@ -19,7 +19,6 @@ import jwt from 'jwt-simple'
 import { jwtConfig, JWTpayload } from '../jwt'
 import { ExtendedRequest } from '../extendExpressRequest'
 import bcrypt from 'bcrypt'
-import twilio from 'twilio'
 import { MailFunction } from '../tools/mail'
 import Expo from 'expo-server-sdk'
 import { Queue } from 'bullmq'
@@ -51,8 +50,6 @@ const createTokenResponseForUser = (user: Users, groupMember: GroupMembers): Tok
 
 function makeRouter(
   client: PrismaClient,
-  twilioClient: twilio.Twilio,
-  sendNumber: string,
   authenticateUser: RequestHandler,
   sendMail: MailFunction,
   jobQueue?: Queue,
@@ -235,37 +232,50 @@ function makeRouter(
         })
 
         if (!mg) {
-          // Add user id and group id to group_members DB
-          const gdata = {
-            user_id: req.user.user_id,
-            group_id: group.group_id
-          }
+          // Check if group already has a maximum users.
 
-          client.users.update({
+          const numMembers = await client.groupMembers.count({
             where: {
-              user_id: req.user.user_id
-            },
-            data: {
               group_id: group.group_id
             }
-          }).then((value) => {
-          }).catch((e) => {
-            console.log(e)
-            res.status(500).json({
-              message: 'there was a server error while updating your password'
-            })
           })
-
-          const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
-            data: {
-              ...gdata
+          if (numMembers < group.max_users) {
+            // Add user id and group id to group_members DB
+            const gdata = {
+              user_id: req.user.user_id,
+              group_id: group.group_id
             }
-          }
-          const groupMember = await client.groupMembers.create(createGroupMemberArgs)
 
-          res.json({
-            message: 'Member has been added to the group'
-          })
+            client.users.update({
+              where: {
+                user_id: req.user.user_id
+              },
+              data: {
+                group_id: group.group_id
+              }
+            }).then((value) => {
+            }).catch((e) => {
+              console.log(e)
+              res.status(500).json({
+                message: 'there was a server error while updating your password'
+              })
+            })
+
+            const createGroupMemberArgs: Prisma.GroupMembersCreateArgs = {
+              data: {
+                ...gdata
+              }
+            }
+            const groupMember = await client.groupMembers.create(createGroupMemberArgs)
+
+            res.json({
+              message: 'Member has been added to the group'
+            })
+          } else {
+            res.status(404).json({
+              message: 'Group has reached the maximum users'
+            })
+          }
         } else {
           res.status(404).json({
             message: 'User is already a member of a group'
@@ -361,6 +371,121 @@ function makeRouter(
     res.json(user)
   })
 
+  // Get Collections Info
+  router.get('/my_collections', authenticateUser, async (req: ExtendedRequest, res) => {
+    try {
+      const collections = await client.nftCollections.findMany({
+        where: {
+          user_id: req.user.user_id
+        }
+      })
+      res.json(collections)
+    } catch (e) {
+      console.log('unexpected error', e)
+      res.status(400).json({
+        message: e.message
+      })
+    }
+  })
+
+  // Get store Info
+  router.get('/stores', authenticateUser, async (req: ExtendedRequest, res) => {
+    try {
+      const stores = await client.nftStore.findMany({})
+      res.json(stores)
+    } catch (e) {
+      console.log('unexpected error', e)
+      res.status(400).json({
+        message: e.message
+      })
+    }
+  })
+
+  router.post('/buy', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input = req.body
+
+    console.log(`input: ${input}`)
+
+    const store = await client.nftStore.findFirst({
+      where: {
+        store_id: input.store_id
+      }
+    })
+    console.log(store)
+    if (req.user.rewards_points < store.item_price) {
+      console.log("Insufficient IEON Balance")
+      res.status(400).json({
+        message: 'Insufficient IOEN Balance.'
+      })
+      return
+    } 
+    const collection = {
+      items: store.items,
+      description: store.description,
+      item_price: store.item_price,
+      user_id: req.user.user_id
+    }
+    
+    // Add bought collection to the store.
+    try {
+      const createCollectionArgs: Prisma.NftCollectionsCreateArgs = {
+        data: {
+          ...collection
+        }
+      }
+      const createdCollection = await client.nftCollections.create(createCollectionArgs)
+      
+      if (createdCollection) {
+        // Delete Store
+        const deleteStore = await client.nftStore.delete({
+          where: {
+            store_id: input.store_id
+          }
+        })
+        if (deleteStore) {
+          const newIOEN = req.user.rewards_points - store.item_price
+
+          // Update IOEN balance if success
+          client.users.update({
+            where: {
+              user_id: req.user.user_id
+            },
+            data: {
+              rewards_points: newIOEN
+            }
+          }).then((value) => {
+          }).catch((e) => {
+            console.log(e)
+            res.status(500).json({
+              message: 'there was a server error while updating your password'
+            })
+          })
+  
+          res.json({
+            message: 'Successful!'
+          })
+        }
+    }
+    } catch (e) {
+      console.log(`meta target: ${e?.meta?.target}`)
+      if (e?.meta?.target === 'email_address_UNIQUE') {
+        res.status(400).json({
+          message: 'Email address already taken',
+        })
+      } else if (e?.meta?.target === 'username_unique') {
+        res.status(400).json({
+          message: 'Username already taken!',
+        })
+      } else {
+        console.log('unexpected error', e)
+        res.status(400).json({
+          message: 'Unexpected Error occured!'
+        })
+      }
+    }
+    
+    
+  })
 
   return router
 }

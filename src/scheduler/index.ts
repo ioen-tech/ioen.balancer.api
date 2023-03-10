@@ -56,9 +56,9 @@ const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction) => {
   setupRepeatingJob(
     jobQueue,
     QUERY_GROUP_NAMES,
-    repeatAtMinutes('*/5', TIMEZONE), // every 5 minutes
+    repeatAtMinutes('*/2', TIMEZONE), // every 5 minutes
     // repeatAtMinutes(20, TIMEZONE), // every 5 minutes
-    'successfully scheduled every 5 minutes to query Fronius',
+    'successfully scheduled every 2 minutes to query Fronius',
     'failed to schedule to query Fronius every 5 minutes',
     false
   )

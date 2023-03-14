@@ -52,6 +52,7 @@
     "expo-server-sdk": "^3.6.0",
     "express": "^4.17.1",
     "express-fileupload": "^1.4.0",
+    "firebase-admin": "^11.5.0",
     "ioredis": "^4.23.0",
     "jwt-simple": "^0.5.6",
     "lodash": "^4.17.20",

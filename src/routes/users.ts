@@ -22,10 +22,7 @@ import bcrypt from 'bcrypt'
 import { MailFunction } from '../tools/mail'
 import Expo from 'expo-server-sdk'
 import { Queue } from 'bullmq'
-import { files } from 'express-fileupload'
-import internal from 'assert'
-import { groupCollapsed } from 'console'
-import { createInputFiles } from 'typescript'
+import { getMessaging } from 'firebase-admin/messaging'
 
 
 // a bcrypt configuration
@@ -53,7 +50,8 @@ function makeRouter(
   authenticateUser: RequestHandler,
   sendMail: MailFunction,
   jobQueue?: Queue,
-  uploads?: any
+  uploads?: any,
+  firebaseAdmin?: any,
 ): Router {
   const router = Router()
 
@@ -341,6 +339,18 @@ function makeRouter(
         }
       }
       const user = await client.users.create(createUserArgs)
+
+      // Create daily notification table.
+      const daily = await client.dailyNotification.create({
+        data: {
+          user_id: user.user_id,
+          daily_rewards: 0,
+          balanced_count: 0,
+          producing_count: 0,
+          consuming_count: 0
+        }
+      })
+
       // success!
       const signUpResponse: SignUpResponse = createTokenResponseForUser(user, null)
       res.json(signUpResponse)
@@ -483,8 +493,57 @@ function makeRouter(
         })
       }
     }
-    
-    
+  })
+  router.post('/set_fcm_token', authenticateUser, async (req: ExtendedRequest, res) => {
+    const input = req.body
+
+    // Check if token is valid or null
+    try {
+      if (!input.fcm_token) throw new Error('FCM token is a required field')
+    } catch (e) {
+      console.log("Throws an ERRRORRRRR")
+      res.status(400).json({
+        message: e.message,
+      })
+      return
+    }
+
+    // Update user fcm token
+    client.users.update({
+      where: {
+        user_id: req.user.user_id
+      },
+      data: {
+        fcm_token: input.fcm_token
+      }
+    }).then((value) => {
+    }).catch((e) => {
+      console.log(e)
+      res.status(500).json({
+        message: 'there was a server error while updating your password'
+      })
+    })
+  })
+  router.get('/send_notif', authenticateUser, async (req: ExtendedRequest, res) => {
+    const fcmToken = req.user.fcm_token
+
+    const message = {
+      notification: {
+        title: "Nanogrid",
+        body: "Congratulations You have been rewarded!"
+      },
+      token: fcmToken
+    }
+    getMessaging().send(message)
+    .then((response) => {
+      console.log("sent notif success: ", response)
+    })
+    .catch((e) => {
+      console.log('error sending message: ', e)
+    })
+    res.status(200).json({
+      message: "test notification"
+    })
   })
 
   return router

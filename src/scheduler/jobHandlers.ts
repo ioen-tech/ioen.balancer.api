@@ -5,6 +5,7 @@ import { Expo } from 'expo-server-sdk'
 import { PrismaClient } from 'energy-schema'
 import { RESILIENCE_OPTS } from '../tools/scheduling'
 import { query } from 'express'
+import { handlePushNotifications, sendDailyPushNotification } from '../notifications/notifications'
 
 import axios from 'axios'
 
@@ -13,11 +14,13 @@ const QUERY_FRONIUS_USERS = 'query_fronius_users'
 const QUERY_FRONIUS_USER = 'query_fronius_user'
 const QUERY_GROUP_NAMES = 'query_group_names'
 const QUERY_USERS_PER_GROUP = 'query_users_per_group'
+const SEND_DAILY_NOTIFICATION = 'send_daily_notification'
 
 const jobHandler = (
   dbClient: PrismaClient,
   expo: Expo,
-  jobQueue: Queue
+  jobQueue: Queue,
+  firebaseAdmin: any,
 ) => async (job: Job) => {
   switch (job.name) {
     case QUERY_GROUP_NAMES:
@@ -27,10 +30,18 @@ const jobHandler = (
       const groupId: number = job.data.group_id
       await queryUsersPerGroup(dbClient, groupId, jobQueue)
       break
+    case SEND_DAILY_NOTIFICATION:
+      await sendDailyNotification(dbClient, jobQueue, firebaseAdmin)
+      break
     default:
       console.log('unrecognized Job name: ' + job.name)
       break
   }
+}
+
+const sendDailyNotification = async (dbClient: PrismaClient, queue: Queue, firebaseAdmin) => {
+  console.log("Send daily Notifications")
+  await sendDailyPushNotification(dbClient, queue, firebaseAdmin)
 }
 
 const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue: Queue) => {
@@ -113,6 +124,7 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
 
       const gupdate = {group_energy: totalGroupEnergy}
       if (totalGroupEnergy > -500 && totalGroupEnergy < 500) {
+        // Group energy is Balanced
         console.log(`groupReward: ${groupReward}`)
         console.log(`memberReward: ${memberReward}`)
         gupdate['reward_start_balance'] = {increment: groupReward}
@@ -126,6 +138,61 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
             data: {
               rewards_points: {
                 increment: memberReward
+              }
+            }
+          })
+        }
+
+        // Update user daily notification table
+        for (let user of groupMembers) {
+          await dbClient.dailyNotification.update({
+            where: {
+              user_id: user.user_id
+            },
+            data: {
+              daily_rewards: {
+                increment: groupReward
+              },
+              balanced_count: {
+                increment: 1
+              }
+            }
+          })
+        }
+      } else if (totalGroupEnergy < -500) {
+        // Group Energy is Producing
+        console.log("Group energy is Producing")
+        // Update user daily notification table
+        for (let user of groupMembers) {
+          await dbClient.dailyNotification.update({
+            where: {
+              user_id: user.user_id
+            },
+            data: {
+              daily_rewards: {
+                increment: groupReward
+              },
+              producing_count: {
+                increment: 1
+              }
+            }
+          })
+        }
+      } else {
+        // Group Energy is Consuming
+        console.log("Group energy is Consuming")
+        // Update user daily notification table
+        for (let user of groupMembers) {
+          await dbClient.dailyNotification.update({
+            where: {
+              user_id: user.user_id
+            },
+            data: {
+              daily_rewards: {
+                increment: groupReward
+              },
+              consuming_count: {
+                increment: 1
               }
             }
           })
@@ -168,5 +235,6 @@ export {
   QUERY_FRONIUS_USERS,
   QUERY_FRONIUS_USER,
   QUERY_GROUP_NAMES,
+  SEND_DAILY_NOTIFICATION,
   jobHandler,
 }

@@ -11,6 +11,7 @@ import {
   QUERY_FRONIUS_USER,
   QUERY_FRONIUS_USERS,
   QUERY_GROUP_NAMES,
+  SEND_DAILY_NOTIFICATION,
 } from './jobHandlers'
 import { MailFunction } from '../tools/mail'
 
@@ -19,7 +20,7 @@ import { MailFunction } from '../tools/mail'
 */
 
 // https://docs.bullmq.io/
-const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction) => {
+const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction, firebaseAdmin: any) => {
   const redisUrl = process.env.REDISCLOUD_URL
   // just use default localhost:6379 as fallback
   const redisConnection = redisUrl ? new IORedis(redisUrl) : new IORedis({maxRetriesPerRequest: null})
@@ -45,6 +46,7 @@ const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction) => {
       dbClient,
       expo,
       jobQueue,
+      firebaseAdmin
     ),
     queueOpts,
   )
@@ -59,6 +61,16 @@ const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction) => {
     repeatAtMinutes('*/5', TIMEZONE), // every 5 minutes
     'successfully scheduled every 5 minutes to query Fronius',
     'failed to schedule to query Fronius every 5 minutes',
+    false
+  )
+
+  // Repet job to send a daily push notification to subscibe users.
+  setupRepeatingJob(
+    jobQueue,
+    SEND_DAILY_NOTIFICATION,
+    repeatAtMinutes('53', TIMEZONE), // every 5 minutes
+    'successfully scheduled every day to send daily push notification',
+    'failed to schedule to send daily push notification',
     false
   )
   return jobQueue

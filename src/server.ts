@@ -15,6 +15,7 @@ import usersRouter from './routes/users'
 import { MailFunction, sendMail, mockSendMail } from './tools/mail'
 import { setupQueue } from './scheduler'
 import { Queue } from 'bullmq'
+import path from 'path'
 
 const port = process.env.PORT || 3000
 
@@ -30,6 +31,7 @@ async function makeApp(
   dbClient: PrismaClient,
   mail: MailFunction,
   jobQueue?: Queue,
+  firebaseAdmin?: any,
   portOverride?: number,
 ) {
   const app = express()
@@ -41,11 +43,11 @@ async function makeApp(
   }))
   // other custom middleware
   app.use(...middlewares)
-  // setup authentication middleware
+  // setup authentication middleware 
   const authenticateRoute = setupPassport(dbClient)
   app.use(passport.initialize())
 
-
+  // filter uploaded file.
   const storage = multer.diskStorage({
     destination: function(req, file, callback) {
       callback(null, __dirname + "/uploads")
@@ -79,7 +81,7 @@ async function makeApp(
   // mount routers
   app.use(
     '/users',
-    usersRouter(dbClient, authenticateRoute, mail, jobQueue, uploads),
+    usersRouter(dbClient, authenticateRoute, mail, jobQueue, uploads, firebaseAdmin),
   )
   // start server listening on port, wait for
   // it to be ready
@@ -111,19 +113,28 @@ async function start() {
     mail = mockSendMail
   }
 
+  // setup firebase admin sdk
+  const firebaseAdmin = require("firebase-admin");
+  var serviceAccount = require(path.join(__dirname, '../nanogrid-fcm.json'));
+  firebaseAdmin.initializeApp({
+    credential: firebaseAdmin.credential.cert(serviceAccount)
+  });
+
+
   // as long as not running in test mode
   // set up the queues
   let jobQueue: Queue
   if (!process.env.JEST_WORKER_ID) {
     // notifications service
     const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN })
-    jobQueue = setupQueue(dbClient, expo, mail)
+    jobQueue = setupQueue(dbClient, expo, mail, firebaseAdmin)
   }
 
   await makeApp(
     dbClient,
     mail,
-    jobQueue
+    jobQueue,
+    firebaseAdmin
   )
 }
 

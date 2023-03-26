@@ -3,5 +3,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "lib": ["ES2015"],
-  }
+    "outDir": "./dist"
+  },
+  "exclude": ["node_modules"]
 }

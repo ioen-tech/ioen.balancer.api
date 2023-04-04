@@ -1,6 +1,8 @@
 import { Response, RequestHandler, Router } from 'express'
 import { GroupMembers, Prisma, PrismaClient, Users } from 'energy-schema'
 import axios from 'axios'
+import moment from 'moment-timezone'
+
 import {
   TokenResponse,
   SignInRequest,
@@ -379,6 +381,18 @@ function makeRouter(
     let user = req.user
     delete user.password
     res.json(user)
+  })
+
+  router.get('/energy_logs', authenticateUser, async (req: ExtendedRequest, res) => {
+    const energy_logs = await client.groupEnergyLogs.findMany({
+      where: {
+        group_id: req.user.group_id,
+        event_time: {
+          gt: moment().hour(0).minute(0).unix()
+        }
+      }
+    })
+    res.json(energy_logs)
   })
 
   // Get Collections Info

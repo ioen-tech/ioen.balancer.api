@@ -51,6 +51,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 exports.__esModule = true;
 var express_1 = require("express");
+var moment_timezone_1 = __importDefault(require("moment-timezone"));
 var jwt_simple_1 = __importDefault(require("jwt-simple"));
 var jwt_1 = require("../jwt");
 var bcrypt_1 = __importDefault(require("bcrypt"));
@@ -458,6 +459,25 @@ function makeRouter(client, authenticateUser, sendMail, jobQueue, uploads, fireb
             delete user.password;
             res.json(user);
             return [2 /*return*/];
+        });
+    }); });
+    router.get('/energy_logs', authenticateUser, function (req, res) { return __awaiter(_this, void 0, void 0, function () {
+        var energy_logs;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, client.groupEnergyLogs.findMany({
+                        where: {
+                            group_id: req.user.group_id,
+                            event_time: {
+                                gt: (0, moment_timezone_1["default"])().hour(0).minute(0).unix()
+                            }
+                        }
+                    })];
+                case 1:
+                    energy_logs = _a.sent();
+                    res.json(energy_logs);
+                    return [2 /*return*/];
+            }
         });
     }); });
     // Get Collections Info

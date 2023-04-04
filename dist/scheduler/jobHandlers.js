@@ -51,6 +51,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 exports.__esModule = true;
 exports.jobHandler = exports.SEND_DAILY_NOTIFICATION = exports.QUERY_GROUP_NAMES = exports.QUERY_FRONIUS_USER = exports.QUERY_FRONIUS_USERS = void 0;
+var moment_timezone_1 = __importDefault(require("moment-timezone"));
 var scheduling_1 = require("../tools/scheduling");
 var notifications_1 = require("../notifications/notifications");
 var axios_1 = __importDefault(require("axios"));
@@ -111,7 +112,7 @@ var sendDailyNotification = function (dbClient, queue, firebaseAdmin) { return _
     });
 }); };
 var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(void 0, void 0, void 0, function () {
-    var groupMembers, totalGroupEnergy, _i, groupMembers_1, groupMember, user, jwtQuery, token, bearer, url, froniusQuery, userEnergy, group, numMembers, groupReward, memberReward, gupdate, _a, groupMembers_2, user, _b, groupMembers_3, user, _c, groupMembers_4, user, _d, groupMembers_5, user;
+    var groupMembers, totalGroupEnergy, _i, groupMembers_1, groupMember, user, jwtQuery, token, bearer, url, froniusQuery, userEnergy, retries, group, numMembers, groupReward, memberReward, gupdate, _a, groupMembers_2, user, _b, groupMembers_3, user, _c, groupMembers_4, user, _d, groupMembers_5, user;
     return __generator(this, function (_e) {
         switch (_e.label) {
             case 0: return [4 /*yield*/, dbClient.groupMembers.findMany({
@@ -125,7 +126,7 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                 _i = 0, groupMembers_1 = groupMembers;
                 _e.label = 2;
             case 2:
-                if (!(_i < groupMembers_1.length)) return [3 /*break*/, 7];
+                if (!(_i < groupMembers_1.length)) return [3 /*break*/, 10];
                 groupMember = groupMembers_1[_i];
                 return [4 /*yield*/, dbClient.users.findFirst({
                         include: {
@@ -139,7 +140,7 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                 ];
             case 3:
                 user = _e.sent();
-                if (!user) return [3 /*break*/, 6];
+                if (!user) return [3 /*break*/, 9];
                 return [4 /*yield*/, axios_1["default"].post(process.env.FRONIUS_URL, {
                         userId: user.fronius_info.fronius_userid,
                         password: user.fronius_info.fronius_password
@@ -166,20 +167,44 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
             case 5:
                 froniusQuery = _e.sent();
                 userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
-                totalGroupEnergy += userEnergy;
-                console.log("user: ".concat(user.user_id, ":").concat(user.username, ", energy: ").concat(userEnergy));
+                retries = 0;
+                if (!isNaN(userEnergy)) return [3 /*break*/, 8];
                 _e.label = 6;
             case 6:
+                if (!(retries < 3)) return [3 /*break*/, 8];
+                console.log("Fronious data(isNan): ", JSON.stringify(froniusQuery.data.data.channels[0].value));
+                return [4 /*yield*/, axios_1["default"].get(url, {
+                        headers: {
+                            'accept': 'application/json',
+                            'AccessKeyId': user.fronius_info.fronius_accesskey_id,
+                            'AccessKeyValue': user.fronius_info.fronius_accesskey_value,
+                            'Authorization': bearer
+                        }
+                    })];
+            case 7:
+                froniusQuery = _e.sent();
+                userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
+                if (!isNaN(userEnergy)) {
+                    return [3 /*break*/, 8];
+                }
+                console.log('Retry #: ', retries);
+                retries++;
+                return [3 /*break*/, 6];
+            case 8:
+                totalGroupEnergy += userEnergy;
+                console.log("user: ".concat(user.user_id, ":").concat(user.username, ", energy: ").concat(userEnergy));
+                _e.label = 9;
+            case 9:
                 _i++;
                 return [3 /*break*/, 2];
-            case 7:
-                if (!totalGroupEnergy) return [3 /*break*/, 30];
+            case 10:
+                if (!!isNaN(totalGroupEnergy)) return [3 /*break*/, 34];
                 return [4 /*yield*/, dbClient.groups.findFirst({
                         where: {
                             group_id: groupId
                         }
                     })];
-            case 8:
+            case 11:
                 group = _e.sent();
                 console.log("".concat(group.group_name, " Energy: ").concat(totalGroupEnergy));
                 return [4 /*yield*/, dbClient.groupMembers.count({
@@ -189,21 +214,21 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                     })
                     // Check if group has minimum users, if not skip this
                 ];
-            case 9:
+            case 12:
                 numMembers = _e.sent();
-                if (!(numMembers >= group.min_users)) return [3 /*break*/, 29];
+                if (!(numMembers >= group.min_users)) return [3 /*break*/, 33];
                 groupReward = Math.round(group.reward_start_balance / 8640);
                 memberReward = Math.round(groupReward / numMembers);
                 gupdate = { group_energy: totalGroupEnergy };
-                if (!(totalGroupEnergy > -500 && totalGroupEnergy < 500)) return [3 /*break*/, 18];
+                if (!(totalGroupEnergy > -500 && totalGroupEnergy < 500)) return [3 /*break*/, 21];
                 // Group energy is Balanced
                 console.log("groupReward: ".concat(groupReward));
                 console.log("memberReward: ".concat(memberReward));
                 gupdate['reward_start_balance'] = { increment: groupReward };
                 _a = 0, groupMembers_2 = groupMembers;
-                _e.label = 10;
-            case 10:
-                if (!(_a < groupMembers_2.length)) return [3 /*break*/, 13];
+                _e.label = 13;
+            case 13:
+                if (!(_a < groupMembers_2.length)) return [3 /*break*/, 16];
                 user = groupMembers_2[_a];
                 return [4 /*yield*/, dbClient.users.update({
                         where: {
@@ -215,17 +240,17 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                             }
                         }
                     })];
-            case 11:
-                _e.sent();
-                _e.label = 12;
-            case 12:
-                _a++;
-                return [3 /*break*/, 10];
-            case 13:
-                _b = 0, groupMembers_3 = groupMembers;
-                _e.label = 14;
             case 14:
-                if (!(_b < groupMembers_3.length)) return [3 /*break*/, 17];
+                _e.sent();
+                _e.label = 15;
+            case 15:
+                _a++;
+                return [3 /*break*/, 13];
+            case 16:
+                _b = 0, groupMembers_3 = groupMembers;
+                _e.label = 17;
+            case 17:
+                if (!(_b < groupMembers_3.length)) return [3 /*break*/, 20];
                 user = groupMembers_3[_b];
                 return [4 /*yield*/, dbClient.dailyNotification.update({
                         where: {
@@ -240,21 +265,21 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                             }
                         }
                     })];
-            case 15:
-                _e.sent();
-                _e.label = 16;
-            case 16:
-                _b++;
-                return [3 /*break*/, 14];
-            case 17: return [3 /*break*/, 27];
             case 18:
-                if (!(totalGroupEnergy < -500)) return [3 /*break*/, 23];
+                _e.sent();
+                _e.label = 19;
+            case 19:
+                _b++;
+                return [3 /*break*/, 17];
+            case 20: return [3 /*break*/, 30];
+            case 21:
+                if (!(totalGroupEnergy < -500)) return [3 /*break*/, 26];
                 // Group Energy is Producing
                 console.log("Group energy is Producing");
                 _c = 0, groupMembers_4 = groupMembers;
-                _e.label = 19;
-            case 19:
-                if (!(_c < groupMembers_4.length)) return [3 /*break*/, 22];
+                _e.label = 22;
+            case 22:
+                if (!(_c < groupMembers_4.length)) return [3 /*break*/, 25];
                 user = groupMembers_4[_c];
                 return [4 /*yield*/, dbClient.dailyNotification.update({
                         where: {
@@ -269,20 +294,20 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                             }
                         }
                     })];
-            case 20:
-                _e.sent();
-                _e.label = 21;
-            case 21:
-                _c++;
-                return [3 /*break*/, 19];
-            case 22: return [3 /*break*/, 27];
             case 23:
+                _e.sent();
+                _e.label = 24;
+            case 24:
+                _c++;
+                return [3 /*break*/, 22];
+            case 25: return [3 /*break*/, 30];
+            case 26:
                 // Group Energy is Consuming
                 console.log("Group energy is Consuming");
                 _d = 0, groupMembers_5 = groupMembers;
-                _e.label = 24;
-            case 24:
-                if (!(_d < groupMembers_5.length)) return [3 /*break*/, 27];
+                _e.label = 27;
+            case 27:
+                if (!(_d < groupMembers_5.length)) return [3 /*break*/, 30];
                 user = groupMembers_5[_d];
                 return [4 /*yield*/, dbClient.dailyNotification.update({
                         where: {
@@ -297,28 +322,41 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                             }
                         }
                     })];
-            case 25:
+            case 28:
                 _e.sent();
-                _e.label = 26;
-            case 26:
+                _e.label = 29;
+            case 29:
                 _d++;
-                return [3 /*break*/, 24];
-            case 27: 
+                return [3 /*break*/, 27];
+            case 30: 
             // Update Group Energy
             return [4 /*yield*/, dbClient.groups.update({
                     where: {
                         group_id: groupId
                     },
                     data: gupdate
-                })];
-            case 28:
+                })
+                // Create energy Logs
+            ];
+            case 31:
                 // Update Group Energy
                 _e.sent();
-                return [3 /*break*/, 30];
-            case 29:
+                // Create energy Logs
+                return [4 /*yield*/, dbClient.groupEnergyLogs.create({
+                        data: {
+                            event_time: (0, moment_timezone_1["default"])().unix(),
+                            energy: totalGroupEnergy,
+                            group_id: groupId
+                        }
+                    })];
+            case 32:
+                // Create energy Logs
+                _e.sent();
+                return [3 /*break*/, 34];
+            case 33:
                 console.log("Group ".concat(group.group_name, " does not reach the minimum users"));
-                _e.label = 30;
-            case 30: return [2 /*return*/];
+                _e.label = 34;
+            case 34: return [2 /*return*/];
         }
     });
 }); };

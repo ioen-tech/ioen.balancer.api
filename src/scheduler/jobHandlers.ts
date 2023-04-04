@@ -83,7 +83,7 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
 
       // calculate Power Requirements
       const url = `${process.env.FRONIUS_PVSYSTEMS_URL}/${user.fronius_info.fronius_device_id}/${process.env.FRONIUS_PVSYSTEMS_AGGDATA}`
-      const froniusQuery = await axios.get(url, {
+      let froniusQuery = await axios.get(url, {
         headers: {
           'accept': 'application/json', 
           'AccessKeyId': user.fronius_info.fronius_accesskey_id,
@@ -91,7 +91,32 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
           'Authorization': bearer,
         }
       })
-      const userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
+
+      let userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
+
+      let retries = 0
+      // Sometimes fronius data returns a NaN
+      if (isNaN(userEnergy)) {
+        // Query fronius 3 times if it returns a NaN
+        while (retries < 3) {
+          console.log("Fronious data(isNan): ", JSON.stringify(froniusQuery.data.data.channels[0].value))
+
+          froniusQuery = await axios.get(url, {
+            headers: {
+              'accept': 'application/json', 
+              'AccessKeyId': user.fronius_info.fronius_accesskey_id,
+              'AccessKeyValue': user.fronius_info.fronius_accesskey_value, 
+              'Authorization': bearer,
+            }
+          })
+          userEnergy = parseInt(JSON.stringify(froniusQuery.data.data.channels[0].value), 10);
+          if (!isNaN(userEnergy)) {
+            break
+          }
+          console.log('Retry #: ', retries)
+          retries++
+        }
+      }
       totalGroupEnergy += userEnergy
 
       console.log(`user: ${user.user_id}:${user.username}, energy: ${userEnergy}`)
@@ -102,7 +127,7 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
 
   // Sometimes query to fronius returns status code 401.
   // check if totalGroupEnergy is null or nan
-  if (totalGroupEnergy) {
+  if (!isNaN(totalGroupEnergy)) {
     // Group totalbal / 8640 = per interval reward for group
     // per interval for group / amount of group members = per interval reward for member
     const group = await dbClient.groups.findFirst({
@@ -204,6 +229,15 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
           group_id: groupId
         },
         data: gupdate
+      })
+
+      // Create energy Logs
+      await dbClient.groupEnergyLogs.create({
+        data: {
+          event_time: moment().unix(),
+          energy: totalGroupEnergy,
+          group_id: groupId
+        }
       })
     } else {
       console.log(`Group ${group.group_name} does not reach the minimum users`)

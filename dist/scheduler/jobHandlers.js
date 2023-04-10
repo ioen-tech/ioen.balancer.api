@@ -344,7 +344,7 @@ var queryUsersPerGroup = function (dbClient, groupId, queue) { return __awaiter(
                 // Create energy Logs
                 return [4 /*yield*/, dbClient.groupEnergyLogs.create({
                         data: {
-                            event_time: (0, moment_timezone_1["default"])().unix(),
+                            event_time: (0, moment_timezone_1["default"])().tz('Australia/Victoria').unix(),
                             energy: totalGroupEnergy,
                             group_id: groupId
                         }

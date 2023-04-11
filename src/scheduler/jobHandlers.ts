@@ -234,7 +234,7 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
       // Create energy Logs
       await dbClient.groupEnergyLogs.create({
         data: {
-          event_time: moment().tz('Australia/Victoria').unix(),
+          event_time: moment().unix(),
           energy: totalGroupEnergy,
           group_id: groupId
         }

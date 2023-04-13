@@ -388,7 +388,7 @@ function makeRouter(
       where: {
         group_id: req.user.group_id,
         event_time: {
-          gt: moment().hour(0).minute(0).unix()
+          gt: moment().tz('Australia/Victoria').hour(0).minute(0).unix()
         }
       }
     })

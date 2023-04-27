@@ -14,6 +14,8 @@ import {
   SEND_DAILY_NOTIFICATION,
 } from './jobHandlers'
 import { MailFunction } from '../tools/mail'
+import { io } from "socket.io-client"
+
 
 /* Explanation
 
@@ -40,13 +42,27 @@ const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction, fire
   process.on('beforeExit', async () => {
     await queueScheduler.close()
   })
+
+  // Send message to front-end via websocket.
+  const socket = io(`http://${process.env.SOCKETIO_SERVER}:${process.env.SOCKETIO_PORT}`)
+
+  socket.on("connect", () => {
+    // Socket is connected
+    console.log("Jobhandler socket connected")
+  })
+  socket.on("disconnect", () => {
+    // Socket id disconnected.
+    console.log("Jobhandler socket disconnected")
+  })
+
   const worker = new Worker(
     QUEUE_NAME,
     jobHandler(
       dbClient,
       expo,
       jobQueue,
-      firebaseAdmin
+      firebaseAdmin,
+      socket
     ),
     queueOpts,
   )

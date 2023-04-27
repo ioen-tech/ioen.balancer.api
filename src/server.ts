@@ -16,6 +16,7 @@ import { MailFunction, sendMail, mockSendMail } from './tools/mail'
 import { setupQueue } from './scheduler'
 import { Queue } from 'bullmq'
 import path from 'path'
+import { Server } from 'socket.io'
 
 const port = process.env.PORT || 3000
 
@@ -83,10 +84,34 @@ async function makeApp(
     '/users',
     usersRouter(dbClient, authenticateRoute, mail, jobQueue, uploads, firebaseAdmin),
   )
+
+
   // start server listening on port, wait for
   // it to be ready
   const portToUse = portOverride || port
   const server = app.listen(portToUse)
+  
+  const io = new Server(server, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    },
+  })
+
+  // Initialize Websocket / Socketio server.
+  io.on("connection", socket => {
+    console.log("New User Connected: ", socket.id)
+    socket.on('disconnect', () => {
+      console.log("A User id disconnected")
+    })
+
+    socket.on("send-message", message => {
+      // This will broadcast to the connected client that
+      // there is an update with their group energy.
+      socket.broadcast.emit(message, message)
+    })
+  })
+
   await new Promise((resolve, reject) => {
     server.on('listening', resolve)
     server.on('error', reject)

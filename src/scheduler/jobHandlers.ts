@@ -21,6 +21,7 @@ const jobHandler = (
   expo: Expo,
   jobQueue: Queue,
   firebaseAdmin: any,
+  socket: any,
 ) => async (job: Job) => {
   switch (job.name) {
     case QUERY_GROUP_NAMES:
@@ -28,7 +29,7 @@ const jobHandler = (
       break
     case QUERY_USERS_PER_GROUP:
       const groupId: number = job.data.group_id
-      await queryUsersPerGroup(dbClient, groupId, jobQueue)
+      await queryUsersPerGroup(dbClient, groupId, jobQueue, socket)
       break
     case SEND_DAILY_NOTIFICATION:
       await sendDailyNotification(dbClient, jobQueue, firebaseAdmin)
@@ -44,7 +45,7 @@ const sendDailyNotification = async (dbClient: PrismaClient, queue: Queue, fireb
   await sendDailyPushNotification(dbClient, queue, firebaseAdmin)
 }
 
-const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue: Queue) => {
+const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue: Queue, socket) => {
   // Query users per group.
   const groupMembers = await dbClient.groupMembers.findMany({
     where: {
@@ -239,6 +240,10 @@ const queryUsersPerGroup = async (dbClient: PrismaClient, groupId: number, queue
           group_id: groupId
         }
       })
+
+      // Send message to the server and to other client that connects to this server.
+      socket.emit("send-message", group.group_name)
+
     } else {
       console.log(`Group ${group.group_name} does not reach the minimum users`)
     }

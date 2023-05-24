@@ -25,7 +25,11 @@ import { io } from "socket.io-client"
 const setupQueue = (dbClient: PrismaClient, expo: Expo, mail: MailFunction, firebaseAdmin: any) => {
   const redisUrl = process.env.REDISCLOUD_URL
   // just use default localhost:6379 as fallback
-  const redisConnection = redisUrl ? new IORedis(redisUrl) : new IORedis({maxRetriesPerRequest: null})
+  const redisConnection = redisUrl ? new IORedis(redisUrl) : new IORedis({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    maxRetriesPerRequest: null
+  })
   const queueOpts = { connection: redisConnection }
 
   /*

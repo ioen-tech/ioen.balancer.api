@@ -48,7 +48,7 @@
     "bullmq": "^1.14.7",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",
-    "energy-schema": "../prisma",
+    "energy-schema": "./prisma",
     "expo-server-sdk": "^3.6.0",
     "express": "^4.17.1",
     "express-fileupload": "^1.4.0",

@@ -1,0 +1,3 @@
+[submodule "prisma"]
+	path = prisma
+	url = git@github.com:ioen-tech/ioen.balancer.schema.git
